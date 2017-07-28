@@ -16,8 +16,12 @@
 
 package io.grpc.examples.helloworld;
 
+import io.grpc.Metadata;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.logging.Logger;
@@ -35,6 +39,16 @@ public class HelloWorldServer {
     int port = 50051;
     server = ServerBuilder.forPort(port)
         .addService(new GreeterImpl())
+        .intercept(
+            new ServerInterceptor() {
+              @Override
+              public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                  ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+                logger.info("got these headers: " + headers);
+                return next.startCall(call, headers);
+              }
+            }
+        )
         .build()
         .start();
     logger.info("Server started, listening on " + port);

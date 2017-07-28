@@ -16,8 +16,16 @@
 
 package io.grpc.examples.helloworld;
 
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientCall;
+import io.grpc.ClientInterceptor;
+import io.grpc.ForwardingClientCall;
+import io.grpc.ForwardingClientCallListener;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Metadata;
+import io.grpc.MethodDescriptor;
 import io.grpc.StatusRuntimeException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -38,6 +46,23 @@ public class HelloWorldClient {
         // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
         // needing certificates.
         .usePlaintext(true)
+        .intercept(new ClientInterceptor() {
+          @Override
+          public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+            ClientCall<ReqT, RespT> clientCall = next.newCall(method, callOptions);
+            return new ForwardingClientCall<ReqT, RespT>() {
+              @Override
+              public void start(Listener<RespT> responseListener, Metadata headers) {
+                headers.put(Metadata.Key.of("l5d-foobar", Metadata.ASCII_STRING_MARSHALLER), "my-value");
+                super.start(responseListener, headers);
+              }
+              @Override
+              protected ClientCall<ReqT, RespT> delegate() {
+                return clientCall;
+              }
+            };
+          }
+        })
         .build());
   }
 
@@ -70,7 +95,7 @@ public class HelloWorldClient {
    * greeting.
    */
   public static void main(String[] args) throws Exception {
-    HelloWorldClient client = new HelloWorldClient("localhost", 50051);
+    HelloWorldClient client = new HelloWorldClient("localhost", 50052);
     try {
       /* Access a service running on the local machine on port 50051 */
       String user = "world";
