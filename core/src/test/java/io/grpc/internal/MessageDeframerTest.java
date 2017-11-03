@@ -318,6 +318,21 @@ public class MessageDeframerTest {
       verify(listener, atLeastOnce()).bytesRead(anyInt());
       verifyNoMoreInteractions(listener);
     }
+
+    @Test
+    public void transportTracer_messageReceived() {
+      deframer.deframe(buffer(new byte[]{0, 0, 0, 0, 1, 3}));
+      TransportTracer.Stats before = transportTracer.getStats();
+      assertEquals(0, before.messagesReceived);
+      assertEquals(0, before.lastMessageReceivedTimeNanos);
+
+      deframer.request(1);
+
+      TransportTracer.Stats after = transportTracer.getStats();
+      assertEquals(1, after.messagesReceived);
+      long timestamp = TimeUnit.NANOSECONDS.toMillis(after.lastMessageReceivedTimeNanos);
+      assertThat(System.currentTimeMillis() - timestamp).isAtMost(50L);
+    }
   }
 
   @RunWith(JUnit4.class)
