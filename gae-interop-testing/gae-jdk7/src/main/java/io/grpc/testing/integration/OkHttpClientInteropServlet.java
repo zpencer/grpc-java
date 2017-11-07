@@ -115,7 +115,7 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
     @Override
     protected ManagedChannel createChannel() {
       ManagedChannelBuilder<?> builder =
-          ManagedChannelBuilder.forTarget(INTEROP_TEST_ADDRESS)
+          OkHttpChannelBuilder.forTarget(INTEROP_TEST_ADDRESS)
               .maxInboundMessageSize(AbstractInteropTest.MAX_MESSAGE_SIZE);
       assertTrue(builder instanceof OkHttpChannelBuilder);
       return builder.build();
