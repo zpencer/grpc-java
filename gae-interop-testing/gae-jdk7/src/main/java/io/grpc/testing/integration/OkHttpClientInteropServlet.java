@@ -52,7 +52,7 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
   public void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     resp.setContentType("text/plain");
     PrintWriter writer = resp.getWriter();
-    writer.println("Test invoked at: ");
+    writer.println("Test invoked at: (master)");
     writer.println(new SimpleDateFormat("yyyy/MM/dd HH:mm:ss Z")
         .format(Calendar.getInstance().getTime()));
 
@@ -80,38 +80,18 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
 
     StringBuilder sb = new StringBuilder();
     int failures = 0;
-    for (Method method : testMethods) {
-      try {
-        for (Method before : befores) {
-          before.invoke(tester);
-        }
-        method.invoke(tester);
-        for (Method after : afters) {
-          after.invoke(tester);
-        }
-      } catch (Exception e) {
-        // The default JUnit4 test runner skips tests with failed assumptions.
-        // We will do the same here.
-        boolean assumptionViolated = false;
-        for (Throwable iter = e; iter != null; iter = iter.getCause()) {
-          if (iter instanceof AssumptionViolatedException) {
-            assumptionViolated = true;
-            break;
-          }
-        }
-        if (assumptionViolated) {
-          continue;
-        }
-
-        sb.append("================\n");
-        sb.append("Test method: ").append(method).append("\n");
-        failures++;
-        StringWriter stringWriter = new StringWriter();
-        PrintWriter printWriter = new PrintWriter(stringWriter);
-        e.printStackTrace(printWriter);
-        sb.append(stringWriter);
-      }
+    try {
+      tester.setUp();
+      tester.emptyUnary();
+      tester.tearDown();
+    } catch (Exception e) {
+      failures = 1;
+      StringWriter stringWriter = new StringWriter();
+      PrintWriter printWriter = new PrintWriter(stringWriter);
+      e.printStackTrace(printWriter);
+      sb.append(stringWriter);
     }
+
     if (failures == 0) {
       resp.setStatus(200);
       writer.println(

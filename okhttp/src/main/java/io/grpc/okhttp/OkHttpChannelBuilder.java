@@ -118,6 +118,9 @@ public class OkHttpChannelBuilder extends
 
   private OkHttpChannelBuilder(String target) {
     super(target);
+    setStatsEnabled(false);
+    setTracingEnabled(false);
+    setRecordStats(false);
   }
 
   /**

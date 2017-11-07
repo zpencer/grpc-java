@@ -271,6 +271,7 @@ public abstract class AbstractInteropTest {
   public void tearDown() throws Exception {
     if (channel != null) {
       channel.shutdown();
+      channel.awaitTermination(10, TimeUnit.SECONDS);
     }
   }
 
