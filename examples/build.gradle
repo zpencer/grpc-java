@@ -37,6 +37,7 @@ dependencies {
   compile "io.grpc:grpc-netty:${grpcVersion}"
   compile "io.grpc:grpc-protobuf:${grpcVersion}"
   compile "io.grpc:grpc-stub:${grpcVersion}"
+  compile "io.grpc:grpc-interop-testing:${grpcVersion}"
 
   // Used for TLS in HelloWorldServerTls
   compile "io.netty:netty-tcnative-boringssl-static:${nettyTcNativeVersion}"
@@ -154,4 +155,12 @@ applicationDistribution.into('bin') {
   from(helloWorldTlsClient)
   from(compressingHelloWorldClient)
   fileMode = 0755
+}
+
+
+task execute(type:JavaExec) {
+  main = mainClass
+  classpath = sourceSets.main.runtimeClasspath
+  jvmArgs "-Dhttps.proxyHost=127.0.0.1"
+  jvmArgs "-Dhttps.proxyPort=3128"
 }
