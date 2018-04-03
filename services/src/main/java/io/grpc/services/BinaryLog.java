@@ -95,11 +95,11 @@ final class BinaryLog implements ServerInterceptor, ClientInterceptor {
 
   // TODO(zpencer): move proto related static helpers into this class
   static final class SinkWriterImpl extends SinkWriter {
-    private final BinaryLogSink sink;
+    private final BinaryLogSinkProvider sink;
     private final int maxHeaderBytes;
     private final int maxMessageBytes;
 
-    SinkWriterImpl(BinaryLogSink sink, int maxHeaderBytes, int maxMessageBytes) {
+    SinkWriterImpl(BinaryLogSinkProvider sink, int maxHeaderBytes, int maxMessageBytes) {
       this.sink = sink;
       this.maxHeaderBytes = maxHeaderBytes;
       this.maxMessageBytes = maxMessageBytes;
@@ -256,7 +256,7 @@ final class BinaryLog implements ServerInterceptor, ClientInterceptor {
     try {
       String configStr = System.getenv("GRPC_BINARY_LOG_CONFIG");
       // TODO(zpencer): make BinaryLog.java implement isAvailable, and put this check there
-      BinaryLogSink sink = BinaryLogSinkProvider.provider();
+      BinaryLogSinkProvider sink = BinaryLogSinkProvider.provider();
       if (sink != null && configStr != null && configStr.length() > 0) {
         defaultFactory = new FactoryImpl(sink, configStr);
       }
@@ -394,7 +394,7 @@ final class BinaryLog implements ServerInterceptor, ClientInterceptor {
      * Accepts a string in the format specified by the binary log spec.
      */
     @VisibleForTesting
-    FactoryImpl(BinaryLogSink sink, String configurationString) {
+    FactoryImpl(BinaryLogSinkProvider sink, String configurationString) {
       Preconditions.checkState(configurationString != null && configurationString.length() > 0);
       BinaryLog globalLog = null;
       Map<String, BinaryLog> perServiceLogs = new HashMap<String, BinaryLog>();
@@ -469,7 +469,7 @@ final class BinaryLog implements ServerInterceptor, ClientInterceptor {
      */
     @VisibleForTesting
     @Nullable
-    static BinaryLog createBinaryLog(BinaryLogSink sink, @Nullable String logConfig) {
+    static BinaryLog createBinaryLog(BinaryLogSinkProvider sink, @Nullable String logConfig) {
       if (logConfig == null) {
         return new BinaryLog(
             new SinkWriterImpl(sink, Integer.MAX_VALUE, Integer.MAX_VALUE));

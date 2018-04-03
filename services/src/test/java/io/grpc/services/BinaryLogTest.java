@@ -115,7 +115,7 @@ public final class BinaryLogTest {
   private static final int MESSAGE_LIMIT = Integer.MAX_VALUE;
 
   private final Metadata nonEmptyMetadata = new Metadata();
-  private final BinaryLogSink sink = mock(BinaryLogSink.class);
+  private final BinaryLogSinkProvider sink = mock(BinaryLogSinkProvider.class);
   private final SinkWriter sinkWriterImpl =
       new SinkWriterImpl(sink, HEADER_LIMIT, MESSAGE_LIMIT);
   private final SinkWriter mockSinkWriter = mock(SinkWriter.class);
@@ -959,7 +959,7 @@ public final class BinaryLogTest {
 
     BinaryLog build() {
       return new BinaryLog(
-          new SinkWriterImpl(mock(BinaryLogSink.class), maxHeaderBytes, maxMessageBytes));
+          new SinkWriterImpl(mock(BinaryLogSinkProvider.class), maxHeaderBytes, maxMessageBytes));
     }
   }
 
