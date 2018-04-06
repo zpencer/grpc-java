@@ -16,21 +16,21 @@
 
 package io.grpc.netty;
 
+import static io.grpc.netty.ProtocolNegotiators.TRANSPORT_ATTR_CHANNELZ_SECURITY;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import io.grpc.Grpc;
 import io.grpc.ServerStreamTracer;
 import io.grpc.Status;
-import io.grpc.internal.Channelz.Security;
 import io.grpc.internal.Channelz.SocketStats;
-import io.grpc.internal.Channelz.Tls;
 import io.grpc.internal.LogId;
 import io.grpc.internal.ServerTransport;
 import io.grpc.internal.ServerTransportListener;
 import io.grpc.internal.TransportTracer;
+import io.grpc.netty.ProtocolNegotiators.ChannelzSecurityGetter;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.net.ssl.SSLSession;
 
 /**
  * The Netty-based server transport.
@@ -233,22 +232,16 @@ class NettyServerTransport implements ServerTransport {
   private SocketStats getStatsHelper(Channel ch) {
     Preconditions.checkState(ch.eventLoop().inEventLoop());
 
-    SSLSession sslSession
+    ChannelzSecurityGetter channelzSecurityGetter
         = grpcHandler == null
         ? null
-        : grpcHandler.getAttributes().get(Grpc.TRANSPORT_ATTR_SSL_SESSION);
-    final Security security;
-    if (sslSession != null) {
-      security = Security.withTls(Tls.fromSslSession(sslSession));
-    } else {
-      security = null;
-    }
+        : grpcHandler.getAttributes().get(TRANSPORT_ATTR_CHANNELZ_SECURITY);
     return new SocketStats(
         transportTracer.getStats(),
         channel.localAddress(),
         channel.remoteAddress(),
         Utils.getSocketOptions(ch),
-        security);
+        channelzSecurityGetter == null ? null : channelzSecurityGetter.get());
   }
 
   /**

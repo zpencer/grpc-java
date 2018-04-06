@@ -16,16 +16,22 @@
 
 package io.grpc.alts.internal;
 
+import static io.grpc.netty.ProtocolNegotiators.TRANSPORT_ATTR_CHANNELZ_SECURITY;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.protobuf.Any;
 import io.grpc.Attributes;
 import io.grpc.Grpc;
 import io.grpc.Status;
 import io.grpc.alts.internal.RpcProtocolVersionsUtil.RpcVersionsCheckResult;
 import io.grpc.alts.internal.TsiHandshakeHandler.TsiHandshakeCompletionEvent;
+import io.grpc.internal.Channelz.OtherSecurity;
+import io.grpc.internal.Channelz.Security;
 import io.grpc.netty.GrpcHttp2ConnectionHandler;
 import io.grpc.netty.ProtocolNegotiator;
 import io.grpc.netty.ProtocolNegotiators.AbstractBufferingHandler;
+import io.grpc.netty.ProtocolNegotiators.ChannelzSecurityGetter;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.AsciiString;
@@ -35,7 +41,6 @@ import io.netty.util.AsciiString;
  * provides ALTS security on the wire, similar to Netty's {@code SslHandler}.
  */
 public abstract class AltsProtocolNegotiator implements ProtocolNegotiator {
-
   private static final Attributes.Key<TsiPeer> TSI_PEER_KEY = Attributes.Key.of("TSI_PEER");
   private static final Attributes.Key<AltsAuthContext> ALTS_CONTEXT_KEY =
       Attributes.Key.of("ALTS_CONTEXT_KEY");
@@ -119,6 +124,7 @@ public abstract class AltsProtocolNegotiator implements ProtocolNegotiator {
                     .set(TSI_PEER_KEY, altsEvt.peer())
                     .set(ALTS_CONTEXT_KEY, altsContext)
                     .set(Grpc.TRANSPORT_ATTR_REMOTE_ADDR, ctx.channel().remoteAddress())
+                    .set(TRANSPORT_ATTR_CHANNELZ_SECURITY, new AltsSecurityGetter(altsContext))
                     .build());
           }
 
@@ -133,6 +139,25 @@ public abstract class AltsProtocolNegotiator implements ProtocolNegotiator {
 
     private static RuntimeException unavailableException(String msg, Throwable cause) {
       return Status.UNAVAILABLE.withCause(cause).withDescription(msg).asRuntimeException();
+    }
+  }
+
+  /**
+   * Creates a {@link Security} on demand.
+   */
+  private static final class AltsSecurityGetter implements ChannelzSecurityGetter {
+    private final AltsAuthContext altsContext;
+
+    private AltsSecurityGetter(AltsAuthContext altsContext) {
+      this.altsContext = altsContext;
+    }
+
+    @Override
+    public Security get() {
+      return Security.withOtherSecurity(
+          new OtherSecurity(
+              AltsProtocolNegotiator.class.getName(),
+              Any.pack(altsContext.context)));
     }
   }
 }

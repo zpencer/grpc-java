@@ -25,6 +25,8 @@ import io.grpc.Attributes;
 import io.grpc.Grpc;
 import io.grpc.Internal;
 import io.grpc.Status;
+import io.grpc.internal.Channelz;
+import io.grpc.internal.Channelz.Security;
 import io.grpc.internal.GrpcUtil;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
@@ -62,6 +64,7 @@ import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 
 /**
  * Common {@link ProtocolNegotiator}s used by gRPC.
@@ -147,10 +150,11 @@ public final class ProtocolNegotiators {
           if (NEXT_PROTOCOL_VERSIONS.contains(sslHandler(ctx.pipeline()).applicationProtocol())) {
             // Successfully negotiated the protocol.
             // Notify about completion and pass down SSLSession in attributes.
+            SSLSession sslSession = sslHandler(ctx.pipeline()).engine().getSession();
             grpcHandler.handleProtocolNegotiationCompleted(
                 Attributes.newBuilder()
-                    .set(Grpc.TRANSPORT_ATTR_SSL_SESSION,
-                        sslHandler(ctx.pipeline()).engine().getSession())
+                    .set(Grpc.TRANSPORT_ATTR_SSL_SESSION, sslSession)
+                    .set(TRANSPORT_ATTR_CHANNELZ_SECURITY, new SslSecurityGetter(sslSession))
                     .set(Grpc.TRANSPORT_ATTR_REMOTE_ADDR, ctx.channel().remoteAddress())
                     .build());
             // Replace this handler with the GRPC handler.
@@ -634,12 +638,14 @@ public final class ProtocolNegotiators {
             // will fail before we see the userEvent, and the channel is closed down prematurely.
             ctx.pipeline().addBefore(ctx.name(), null, grpcHandler);
 
+            SSLSession sslSession = handler.engine().getSession();
             // Successfully negotiated the protocol.
             // Notify about completion and pass down SSLSession in attributes.
             grpcHandler.handleProtocolNegotiationCompleted(
                 Attributes.newBuilder()
-                    .set(Grpc.TRANSPORT_ATTR_SSL_SESSION, handler.engine().getSession())
+                    .set(Grpc.TRANSPORT_ATTR_SSL_SESSION, sslSession)
                     .set(Grpc.TRANSPORT_ATTR_REMOTE_ADDR, ctx.channel().remoteAddress())
+                    .set(TRANSPORT_ATTR_CHANNELZ_SECURITY, new SslSecurityGetter(sslSession))
                     .build());
             writeBufferedAndRemove(ctx);
           } else {
@@ -732,6 +738,30 @@ public final class ProtocolNegotiators {
         fail(ctx, unavailableException("HTTP/2 upgrade rejected"));
       }
       super.userEventTriggered(ctx, evt);
+    }
+  }
+
+  /**
+   * A class that creates a {@link Security} on demand. This allows us to avoid pre-computing
+   * it, because we typically do not need it.
+   */
+  public interface ChannelzSecurityGetter {
+    Security get();
+  }
+
+  public static final Attributes.Key<ChannelzSecurityGetter> TRANSPORT_ATTR_CHANNELZ_SECURITY
+      = Attributes.Key.of("transport-channelz-security");
+
+  private static final class SslSecurityGetter implements ChannelzSecurityGetter {
+    private final SSLSession sslSession;
+
+    private SslSecurityGetter(SSLSession sslSession) {
+      this.sslSession = sslSession;
+    }
+
+    @Override
+    public Security get() {
+      return Channelz.Security.withTls(Channelz.Tls.fromSslSession(sslSession));
     }
   }
 }

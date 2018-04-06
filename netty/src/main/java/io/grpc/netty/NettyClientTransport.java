@@ -17,6 +17,7 @@
 package io.grpc.netty;
 
 import static io.grpc.internal.GrpcUtil.KEEPALIVE_TIME_NANOS_DISABLED;
+import static io.grpc.netty.ProtocolNegotiators.TRANSPORT_ATTR_CHANNELZ_SECURITY;
 import static io.netty.channel.ChannelOption.SO_KEEPALIVE;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -25,13 +26,10 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.grpc.Attributes;
 import io.grpc.CallOptions;
-import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
-import io.grpc.internal.Channelz.Security;
 import io.grpc.internal.Channelz.SocketStats;
-import io.grpc.internal.Channelz.Tls;
 import io.grpc.internal.ClientStream;
 import io.grpc.internal.ConnectionClientTransport;
 import io.grpc.internal.FailingClientStream;
@@ -42,6 +40,7 @@ import io.grpc.internal.KeepAliveManager.ClientKeepAlivePinger;
 import io.grpc.internal.LogId;
 import io.grpc.internal.StatsTraceContext;
 import io.grpc.internal.TransportTracer;
+import io.grpc.netty.ProtocolNegotiators.ChannelzSecurityGetter;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -60,7 +59,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import javax.net.ssl.SSLSession;
 
 /**
  * A Netty-based {@link ConnectionClientTransport} implementation.
@@ -348,19 +346,15 @@ class NettyClientTransport implements ConnectionClientTransport {
     Preconditions.checkState(ch.eventLoop().inEventLoop());
     // If protocol negotiation is not yet complete, then the attributes will be empty,
     // and we will have no security to report yet.
-    SSLSession sslSession = getAttributes().get(Grpc.TRANSPORT_ATTR_SSL_SESSION);
-    final Security security;
-    if (sslSession != null) {
-      security = Security.withTls(Tls.fromSslSession(sslSession));
-    } else {
-      security = null;
-    }
+    ChannelzSecurityGetter channelzSecurityGetter
+        = getAttributes().get(TRANSPORT_ATTR_CHANNELZ_SECURITY);
+
     return new SocketStats(
         transportTracer.getStats(),
         channel.localAddress(),
         channel.remoteAddress(),
         Utils.getSocketOptions(ch),
-        security);
+        channelzSecurityGetter == null ? null : channelzSecurityGetter.get());
   }
 
   @VisibleForTesting
