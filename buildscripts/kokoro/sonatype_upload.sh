@@ -47,18 +47,16 @@ gpg --version
 
 # Tested manually using these two versions.
 # This is the version found on kokoro.
-if [[ $(gpg --version | grep 'gpg (GnuPG) 1.4.16') ]]; then
-  echo "Detected GPG version v1.x.x, running command that was verified on 1.4.16"
+if [[ $(gpg --version | grep 'gpg (GnuPG) 1.') ]]; then
+  # This command was tested on 1.4.16
   find "$KOKORO_GFILE_DIR" -type f -exec \
-  gpg --batch --passphrase-file ~/java_signing/passphrase --detach-sign -o {}.asc {}' \;
-#    bash -c \
-#    'set -x; cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 --detach-sign -o {}.asc {}' \;
+  gpg --batch --passphrase-file ~/java_signing/passphrase --detach-sign -o {}.asc {} \;
 fi
 
 set +x
 # This is the version found on my workstation.
-if [[ $(gpg --version | grep 'gpg (GnuPG) 2.2.2') ]]; then
-  echo "Detected GPG version v2.x.x, running command that was verified on 2.2.2"
+if [[ $(gpg --version | grep 'gpg (GnuPG) 2.') ]]; then
+  # This command was tested on 2.2.2
   find "$KOKORO_GFILE_DIR" -type f -exec \
     gpg --batch --passphrase-file ~/java_signing/passphrase --pinentry-mode loopback \
     --detach-sign -o {}.asc {} \;
