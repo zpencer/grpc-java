@@ -21,7 +21,8 @@ gpg --batch  --import ~/java_signing/grpc-java-team-sonatype.asc
 
 set +x
 find ~/java_signing -type f -exec \
-  gpg --batch --passphrase-file ~/java_signing/passphrase --detach-sign -o {}.asc {} \;
+  gpg --batch --passphrase $(cat ~/java_signing/passphrase) --pinentry-mode loopback \
+  --detach-sign -o {}.asc {} \;
 set -x
 
 STAGING_REPO=a93898609ef848
