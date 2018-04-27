@@ -14,4 +14,4 @@ readonly grpc_java_dir="$(dirname $(readlink -f "$0"))/.."
 # We do not use -it because the input device in kokoro is not a TTY
 exec docker run --rm=true -v "${grpc_java_dir}:/grpc-java" -w /grpc-java \
   grpc-java-releasing \
-  bash -c "function fixFiles() { chown -R $(id -u):$(id -g) ${grpc_java_dir}; }; trap fixFiles EXIT; $(quote "$@")"
+  bash -c "function fixFiles() { chown -R $(id -u):$(id -g) /grpc-java; }; trap fixFiles EXIT; $(quote "$@")"
