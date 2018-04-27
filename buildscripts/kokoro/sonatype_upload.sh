@@ -59,7 +59,7 @@ set +x
 if [[ $(gpg --version | grep 'gpg (GnuPG) 2.2.2') ]]; then
   echo "Detected GPG version v2.x.x, running command that was verified on 2.2.2"
   find "$KOKORO_GFILE_DIR" -type f -exec \
-    gpg --batch --passphrase $(cat ~/java_signing/passphrase) --pinentry-mode loopback \
+    gpg --batch --passphrase-file ~/java_signing/passphrase --pinentry-mode loopback \
     --detach-sign -o {}.asc {} \;
 fi
 set -x
