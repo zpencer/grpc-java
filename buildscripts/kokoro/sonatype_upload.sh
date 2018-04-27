@@ -25,7 +25,7 @@ if [[ $(gpg --version | grep 'gpg (GnuPG) 1.4.16') ]]; then
   echo "Runing command for 1.4.16"
   find ~/java_signing -type f -exec \
     bash -c \
-    'cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 --detach-sign -o {}.asc {}' \;
+    'set -x; cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 --detach-sign -o {}.asc {}' \;
 fi
 
 set +x
