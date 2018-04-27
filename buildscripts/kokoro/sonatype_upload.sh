@@ -50,7 +50,7 @@ gpg --version
 if [[ $(gpg --version | grep 'gpg (GnuPG) 1.') ]]; then
   # This command was tested on 1.4.16
   find "$KOKORO_GFILE_DIR" -type f -exec \
-  bash -c 'cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 ~/java_signing/passphrase --detach-sign -o {}.asc {}' \;
+  bash -c 'cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 --detach-sign -o {}.asc {}' \;
 fi
 
 # This is the version found on my workstation.
