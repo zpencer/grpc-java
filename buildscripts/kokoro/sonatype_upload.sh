@@ -7,8 +7,6 @@ fi
 
 readonly GRPC_JAVA_DIR=$(cd $(dirname $0)/../.. && pwd)
 
-# A place holder at the moment
-
 echo "all the artifacts should be here..."
 find $KOKORO_GFILE_DIR
 
@@ -19,6 +17,7 @@ mkdir -p ~/java_signing/
 gsutil cp -r gs://grpc-testing-secrets/java_signing/ ~/
 gpg --batch  --import ~/java_signing/grpc-java-team-sonatype.asc
 
+gpg --version
 set +x
 find ~/java_signing -type f -exec \
   gpg --batch --passphrase $(cat ~/java_signing/passphrase) --pinentry-mode loopback \
