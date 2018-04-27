@@ -18,10 +18,22 @@ gsutil cp -r gs://grpc-testing-secrets/java_signing/ ~/
 gpg --batch  --import ~/java_signing/grpc-java-team-sonatype.asc
 
 gpg --version
+
 set +x
-find ~/java_signing -type f -exec \
-  gpg --batch --passphrase $(cat ~/java_signing/passphrase) --pinentry-mode loopback \
-  --detach-sign -o {}.asc {} \;
+# Tested manually using these two versions.
+# This is the version found on kokoro.
+if [[ $(gpg --version | grep 'gpg (GnuPG) 1.4.16') ]]; then
+  find ~/java_signing -type f -exec \
+    bash -c \
+    'cat ~/java_signing/passphrase | gpg --batch --passphrase-fd 0 --detach-sign -o {}.asc {}' \;
+fi
+
+# This is the version found on my workstation.
+if [[ $(gpg --version | grep 'gpg (GnuPG) 2.2.2') ]]; then
+  find ~/java_signing -type f -exec \
+    gpg --batch --passphrase $(cat ~/java_signing/passphrase) --pinentry-mode loopback \
+    --detach-sign -o {}.asc {} \;
+fi
 set -x
 
 STAGING_REPO=a93898609ef848
