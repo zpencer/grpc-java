@@ -53,7 +53,6 @@ if [[ $(gpg --version | grep 'gpg (GnuPG) 1.') ]]; then
   gpg --batch --passphrase-file ~/java_signing/passphrase --detach-sign -o {}.asc {} \;
 fi
 
-set +x
 # This is the version found on my workstation.
 if [[ $(gpg --version | grep 'gpg (GnuPG) 2.') ]]; then
   # This command was tested on 2.2.2
@@ -61,7 +60,6 @@ if [[ $(gpg --version | grep 'gpg (GnuPG) 2.') ]]; then
     gpg --batch --passphrase-file ~/java_signing/passphrase --pinentry-mode loopback \
     --detach-sign -o {}.asc {} \;
 fi
-set -x
 
 STAGING_REPO=a93898609ef848
 find $KOKORO_GFILE_DIR -name 'mvn-artifacts' -type d -exec \
