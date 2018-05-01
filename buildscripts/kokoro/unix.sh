@@ -45,6 +45,7 @@ export LD_LIBRARY_PATH=/tmp/protobuf/lib
 export LDFLAGS=-L/tmp/protobuf/lib
 export CXXFLAGS="-I/tmp/protobuf/include"
 
+SKIP_TESTS=disablefordemo
 if [[ -z "${SKIP_TESTS:-}" ]]; then
   ./gradlew clean $GRADLE_FLAGS
   # Ensure all *.proto changes include *.java generated code
