@@ -21,6 +21,7 @@ import static io.grpc.BinaryLogProvider.BYTEARRAY_MARSHALLER;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.primitives.Bytes;
 import com.google.protobuf.ByteString;
 import io.grpc.Attributes;
 import io.grpc.BinaryLog.CallId;
@@ -55,6 +56,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -71,6 +73,9 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 final class BinlogHelper {
   private static final Logger logger = Logger.getLogger(BinlogHelper.class.getName());
+  private static final int IP_PORT_BYTES = 2;
+  private static final int IP_PORT_UPPER_MASK = 0xff00;
+  private static final int IP_PORT_LOWER_MASK = 0xff;
   private static final boolean SERVER = true;
   private static final boolean CLIENT = false;
 
@@ -103,40 +108,34 @@ final class BinlogHelper {
 
     @Override
     void logSendInitialMetadata(Metadata metadata, boolean isServer, CallId callId) {
-      GrpcLogEntry entry = GrpcLogEntry
-          .newBuilder()
+      GrpcLogEntry.Builder entryBuilder = GrpcLogEntry.newBuilder()
           .setType(Type.SEND_INITIAL_METADATA)
           .setLogger(isServer ? GrpcLogEntry.Logger.SERVER : GrpcLogEntry.Logger.CLIENT)
-          .setCallId(callIdToProto(callId))
-          .setMetadata(metadataToProto(metadata, maxHeaderBytes))
-          .build();
-      sink.write(entry);
+          .setCallId(callIdToProto(callId));
+      metadataToProto(entryBuilder, metadata, maxHeaderBytes);
+      sink.write(entryBuilder.build());
     }
 
     @Override
     void logRecvInitialMetadata(
         Metadata metadata, boolean isServer, CallId callId, SocketAddress peerSocket) {
-      GrpcLogEntry entry = GrpcLogEntry
-          .newBuilder()
+      GrpcLogEntry.Builder entryBuilder = GrpcLogEntry.newBuilder()
           .setType(Type.RECV_INITIAL_METADATA)
           .setLogger(isServer ? GrpcLogEntry.Logger.SERVER : GrpcLogEntry.Logger.CLIENT)
           .setCallId(callIdToProto(callId))
-          .setPeer(socketToProto(peerSocket))
-          .setMetadata(metadataToProto(metadata, maxHeaderBytes))
-          .build();
-      sink.write(entry);
+          .setPeer(socketToProto(peerSocket));
+      metadataToProto(entryBuilder, metadata, maxHeaderBytes);
+      sink.write(entryBuilder.build());
     }
 
     @Override
     void logTrailingMetadata(Metadata metadata, boolean isServer, CallId callId) {
-      GrpcLogEntry entry = GrpcLogEntry
-          .newBuilder()
+      GrpcLogEntry.Builder entryBuilder = GrpcLogEntry.newBuilder()
           .setType(isServer ? Type.SEND_TRAILING_METADATA : Type.RECV_TRAILING_METADATA)
           .setLogger(isServer ? GrpcLogEntry.Logger.SERVER : GrpcLogEntry.Logger.CLIENT)
-          .setCallId(callIdToProto(callId))
-          .setMetadata(metadataToProto(metadata, maxHeaderBytes))
-          .build();
-      sink.write(entry);
+          .setCallId(callIdToProto(callId));
+      metadataToProto(entryBuilder, metadata, maxHeaderBytes);
+      sink.write(entryBuilder.build());
     }
 
     @Override
@@ -149,15 +148,12 @@ final class BinlogHelper {
       if (marshaller != BYTEARRAY_MARSHALLER) {
         throw new IllegalStateException("Expected the BinaryLog's ByteArrayMarshaller");
       }
-      byte[] bytes = (byte[]) message;
-      GrpcLogEntry entry = GrpcLogEntry
-          .newBuilder()
+      GrpcLogEntry.Builder entryBuilder = GrpcLogEntry.newBuilder()
           .setType(Type.SEND_MESSAGE)
           .setLogger(isServer ? GrpcLogEntry.Logger.SERVER : GrpcLogEntry.Logger.CLIENT)
-          .setCallId(callIdToProto(callId))
-          .setMessage(messageToProto(bytes, compressed, maxMessageBytes))
-          .build();
-      sink.write(entry);
+          .setCallId(callIdToProto(callId));
+      messageToProto(entryBuilder, (byte[]) message, compressed, maxMessageBytes);
+      sink.write(entryBuilder.build());
     }
 
     @Override
@@ -170,15 +166,13 @@ final class BinlogHelper {
       if (marshaller != BYTEARRAY_MARSHALLER) {
         throw new IllegalStateException("Expected the BinaryLog's ByteArrayMarshaller");
       }
-      byte[] bytes = (byte[]) message;
-      GrpcLogEntry entry = GrpcLogEntry
-          .newBuilder()
+      GrpcLogEntry.Builder entryBuilder = GrpcLogEntry.newBuilder()
           .setType(Type.RECV_MESSAGE)
           .setLogger(isServer ? GrpcLogEntry.Logger.SERVER : GrpcLogEntry.Logger.CLIENT)
-          .setCallId(callIdToProto(callId))
-          .setMessage(messageToProto(bytes, compressed, maxMessageBytes))
-          .build();
-      sink.write(entry);
+          .setCallId(callIdToProto(callId));
+
+      messageToProto(entryBuilder, (byte[]) message, compressed, maxMessageBytes);
+      sink.write(entryBuilder.build());
     }
 
     @Override
@@ -548,19 +542,21 @@ final class BinlogHelper {
   }
 
   @VisibleForTesting
-  static io.grpc.binarylog.Metadata metadataToProto(Metadata metadata, int maxHeaderBytes) {
+  static void metadataToProto(
+      GrpcLogEntry.Builder entryBuilder, Metadata metadata, int maxHeaderBytes) {
+    Preconditions.checkNotNull(entryBuilder);
     Preconditions.checkNotNull(metadata);
     Preconditions.checkState(maxHeaderBytes >= 0);
-    Builder builder = io.grpc.binarylog.Metadata.newBuilder();
+    Builder metaBuilder = io.grpc.binarylog.Metadata.newBuilder();
     // This code is tightly coupled with Metadata's implementation
-    byte[][] serialized;
+    byte[][] serialized = null;
     if (maxHeaderBytes > 0 && (serialized = InternalMetadata.serialize(metadata)) != null) {
       int written = 0;
       for (int i = 0; i < serialized.length && written < maxHeaderBytes; i += 2) {
         byte[] key = serialized[i];
         byte[] value = serialized[i + 1];
         if (written + key.length + value.length <= maxHeaderBytes) {
-          builder.addEntry(
+          metaBuilder.addEntry(
               MetadataEntry
                   .newBuilder()
                   .setKey(ByteString.copyFrom(key))
@@ -571,21 +567,25 @@ final class BinlogHelper {
         }
       }
     }
-    return builder.build();
+    entryBuilder.setTruncated(maxHeaderBytes == 0
+        || (serialized != null && (serialized.length / 2) > metaBuilder.getEntryCount()));
+    entryBuilder.setMetadata(metaBuilder.build());
   }
 
   @VisibleForTesting
-  static Message messageToProto(byte[] message, boolean compressed, int maxMessageBytes) {
+  static void messageToProto(
+      GrpcLogEntry.Builder entryBuilder, byte[] message, boolean compressed, int maxMessageBytes) {
     Preconditions.checkNotNull(message);
-    Message.Builder builder = Message
+    Message.Builder msgBuilder = Message
         .newBuilder()
         .setFlags(flagsForMessage(compressed))
         .setLength(message.length);
     if (maxMessageBytes > 0) {
       int desiredBytes = Math.min(maxMessageBytes, message.length);
-      builder.setData(ByteString.copyFrom(message, 0, desiredBytes));
+      msgBuilder.setData(ByteString.copyFrom(message, 0, desiredBytes));
     }
-    return builder.build();
+    entryBuilder.setMessage(msgBuilder.build());
+    entryBuilder.setTruncated(maxMessageBytes < message.length);
   }
 
   /**
