@@ -15,7 +15,7 @@
 
 set -eu -o pipefail
 
-if [ $# -ne 2 ]; then
+if [ $# -ne 3 ]; then
   cat <<EOF
 Usage: $0 PROFILEID DIR
   PROFILEID The Sonatype profile to use for staging repository
@@ -24,6 +24,7 @@ Usage: $0 PROFILEID DIR
              * Select profile based on name (e.g., 'io.grpc')
              * Copy hex identifier from URL after "#stagingProfiles;"
   DIR       Directory to upload to Sonatype as a new staging repository
+  RELEASE_TYPE Can be 'release' or 'snapshot'
 
 ~/.config/sonatype-upload: Configuration file for Sonatype username and password
   USERNAME=yourusername
@@ -41,6 +42,7 @@ fi
 
 PROFILE_ID="$1"
 DIR="$2"
+RELEASE_TYPE="$3"
 if [ -z "$DIR" ]; then
   echo "Must specify non-empty directory name"
   exit 1
@@ -59,7 +61,18 @@ if [ -z "$USERNAME" -o -z "$PASSWORD" ]; then
   exit 1
 fi
 
-STAGING_URL="https://oss.sonatype.org/service/local/staging"
+RELEASE_URL="https://oss.sonatype.org/service/local/staging"
+SNAPSHOT_URL="https://oss.sonatype.org/content/repositories/snapshots"
+
+if [[ $RELEASE_TYPE == "snapshot" ]]; then
+    STAGING_URL="$SNAPSHOT_URL"
+elif [[ $RELEASE_TYPE == "release" ]]; then
+    STAGING_URL="$RELEASE_URL"
+else
+    echo "Unknown release type. Must be 'release' or 'snapshot'." >&2
+    exit 1
+fi
+
 
 # We go through the effort of using deloyByRepositoryId/ because it is
 # _substantially_ faster to upload files than deploy/maven2/. When using

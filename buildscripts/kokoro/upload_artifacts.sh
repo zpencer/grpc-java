@@ -59,5 +59,9 @@ if gpg --version | grep 'gpg (GnuPG) 2.'; then
     --detach-sign -a {} \;
 fi
 
+RELEASE_TYPE="release"
+grep "SNAPSHOT" "$LOCAL_MVN_ARTIFACTS/io/grpc/grpc-services/maven-metadata.xml" || RELEASE_TYPE="snapshot"
+
+
 STAGING_REPO=a93898609ef848
-"$GRPC_JAVA_DIR"/buildscripts/sonatype-upload.sh "$STAGING_REPO" "$LOCAL_MVN_ARTIFACTS"
+"$GRPC_JAVA_DIR"/buildscripts/sonatype-upload.sh "$STAGING_REPO" "$LOCAL_MVN_ARTIFACTS" "$RELEASE_TYPE"
