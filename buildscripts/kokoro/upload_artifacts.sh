@@ -59,8 +59,11 @@ if gpg --version | grep 'gpg (GnuPG) 2.'; then
     --detach-sign -a {} \;
 fi
 
-RELEASE_TYPE="release"
-grep "SNAPSHOT" "$LOCAL_MVN_ARTIFACTS/io/grpc/grpc-services/maven-metadata.xml" || RELEASE_TYPE="snapshot"
+if grep "SNAPSHOT" "$LOCAL_MVN_ARTIFACTS/io/grpc/grpc-services/maven-metadata.xml"; then
+    RELEASE_TYPE="snapshot"
+else
+    RELEASE_TYPE="release"
+fi
 
 
 STAGING_REPO=a93898609ef848
