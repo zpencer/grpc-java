@@ -29,7 +29,9 @@ import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -79,7 +81,7 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
     }
 
     StringBuilder sb = new StringBuilder();
-    int failures = 0;
+    Set<String> failures = new HashSet<String>();
     for (Method method : testMethods) {
       // JUnit creates a new instance per test method, we will emulate that behavior.
       Tester tester = new Tester();
@@ -88,33 +90,19 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
           before.invoke(tester);
         }
         method.invoke(tester);
-        for (Method after : afters) {
-          after.invoke(tester);
-        }
-      } catch (Exception e) {
+      } catch (Throwable t) {
         // The default JUnit4 test runner skips tests with failed assumptions.
         // We will do the same here.
-        boolean assumptionViolated = false;
-        for (Throwable iter = e; iter != null; iter = iter.getCause()) {
-          if (iter instanceof AssumptionViolatedException) {
-            assumptionViolated = true;
-            break;
-          }
+        if (!isAssumptionViolation(t)) {
+          addExceptionToOutput(failures, sb, method.toString(), t);
         }
-        if (assumptionViolated) {
-          continue;
+      } finally {
+        for (Method after : afters) {
+          invokeQuietly(after, tester, sb, failures);
         }
-
-        sb.append("================\n");
-        sb.append("Test method: ").append(method).append("\n");
-        failures++;
-        StringWriter stringWriter = new StringWriter();
-        PrintWriter printWriter = new PrintWriter(stringWriter);
-        e.printStackTrace(printWriter);
-        sb.append(stringWriter);
       }
     }
-    if (failures == 0) {
+    if (failures.size() == 0) {
       resp.setStatus(200);
       writer.println(
           String.format(
@@ -127,10 +115,48 @@ public final class OkHttpClientInteropServlet extends HttpServlet {
           String.format(
               "FAILED! Tests ran %d, tests failed %d, tests ignored %d",
               testMethods.size(),
-              failures,
+              failures.size(),
               ignored));
     }
     writer.println(sb);
+  }
+
+  /**
+   * Returns true if the true cause of the failure is due to an assumption violation.
+   */
+  private static boolean isAssumptionViolation(Throwable t) {
+    for (Throwable iter = t; iter != null; iter = iter.getCause()) {
+      if (iter instanceof AssumptionViolatedException) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Invokes a method and logs the exception to the servlet output if one is thrown.
+   */
+  private static void invokeQuietly(
+      Method method, Object obj, StringBuilder sb, Set<String> failures) {
+    try {
+      method.invoke(obj);
+    } catch (Throwable t) {
+      addExceptionToOutput(failures, sb, method.getName(), t);
+    }
+  }
+
+  /**
+   * Logs the exception to the servlet output by way of a StringBuilder.
+   */
+  private static void addExceptionToOutput(
+      Set<String> failures, StringBuilder sb, String methodName, Throwable e) {
+    failures.add(methodName);
+    sb.append("================\n");
+    sb.append("Test method: ").append(methodName).append("\n");
+    StringWriter stringWriter = new StringWriter();
+    PrintWriter printWriter = new PrintWriter(stringWriter);
+    e.printStackTrace(printWriter);
+    sb.append(stringWriter);
   }
 
   public static final class Tester extends AbstractInteropTest {
