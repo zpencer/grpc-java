@@ -20,11 +20,14 @@ import static com.google.common.base.Charsets.UTF_8;
 
 import com.google.common.base.Preconditions;
 import io.grpc.KnownLength;
+import io.grpc.ReadableBufferList;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utility methods for creating {@link ReadableBuffer} instances.
@@ -203,6 +206,19 @@ public final class ReadableBuffers {
     public int arrayOffset() {
       return offset;
     }
+
+    @Override
+    public boolean bufferListAvailable() {
+      return true;
+    }
+
+    @Override
+    public void collectBufferList(List<ByteBuffer> result) {
+      if (offset == end) {
+        return;
+      }
+      result.add(ByteBuffer.wrap(bytes, offset, end));
+    }
   }
 
   /**
@@ -290,12 +306,26 @@ public final class ReadableBuffers {
     public int arrayOffset() {
       return bytes.arrayOffset() + bytes.position();
     }
+
+    @Override
+    public boolean bufferListAvailable() {
+      return true;
+    }
+
+    @Override
+    public void collectBufferList(List<ByteBuffer> result) {
+      if (bytes.remaining() == 0) {
+        return;
+      }
+      result.add(bytes.duplicate());
+    }
   }
 
   /**
    * An {@link InputStream} that is backed by a {@link ReadableBuffer}.
    */
-  private static final class BufferInputStream extends InputStream implements KnownLength {
+  private static class BufferInputStream extends InputStream
+      implements KnownLength, ReadableBufferList {
     final ReadableBuffer buffer;
 
     public BufferInputStream(ReadableBuffer buffer) {
@@ -331,6 +361,18 @@ public final class ReadableBuffers {
     @Override
     public void close() throws IOException {
       buffer.close();
+    }
+
+    @Override
+    public boolean bufferListAvailable() {
+      return buffer.bufferListAvailable();
+    }
+
+    @Override
+    public List<ByteBuffer> getBufferList() {
+      List<ByteBuffer> ret = new ArrayList<ByteBuffer>();
+      buffer.collectBufferList(ret);
+      return ret;
     }
   }
 

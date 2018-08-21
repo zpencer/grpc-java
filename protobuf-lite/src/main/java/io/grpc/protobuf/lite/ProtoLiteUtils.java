@@ -29,22 +29,46 @@ import io.grpc.KnownLength;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor.Marshaller;
 import io.grpc.MethodDescriptor.PrototypeMarshaller;
+import io.grpc.ReadableBufferList;
 import io.grpc.Status;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Utility methods for using protobuf with grpc.
  */
 @ExperimentalApi("Experimental until Lite is stable in protobuf")
 public final class ProtoLiteUtils {
+  private static final Logger logger = Logger.getLogger(ProtoLiteUtils.class.getName());
+
+  private static final String PROTOBUF_MULTI_BUFFER_PROPERTY_NAME
+      = System.getProperty("io.grpc.protobuf.lite.read_from_byte_buffer_list", "true");
+  private static final String PROTOBUF_READ_FROM_DIRECT_BUFFER_PROPERTY_NAME
+      = System.getProperty("io.grpc.protobuf.lite.read_from_direct_buffer", "true");
 
   // default visibility to avoid synthetic accessors
   static volatile ExtensionRegistryLite globalRegistry =
       ExtensionRegistryLite.getEmptyRegistry();
+
+  // default visibility to avoid synthetic accessors
+  static final boolean PROTOBUF_MULTI_BUFFER
+      = Boolean.parseBoolean(PROTOBUF_MULTI_BUFFER_PROPERTY_NAME);
+  static final boolean PROTOBUF_READ_FROM_DIRECT_BUFFER
+      = Boolean.parseBoolean(PROTOBUF_READ_FROM_DIRECT_BUFFER_PROPERTY_NAME);
+
+  // The marshaller is shared between protobuf and protobuf-lite.
+  // At the moment, protobuf-lite does not provide a constructor accepting multiple ByteBuffers.
+  // default visibility to avoid synthetic accessors
+  static final Method CIS_MULTI_BUF_FACTORY;
 
   private static final int BUF_SIZE = 8192;
 
@@ -53,6 +77,20 @@ public final class ProtoLiteUtils {
    */
   @VisibleForTesting
   static final int DEFAULT_MAX_MESSAGE_SIZE = 4 * 1024 * 1024;
+
+  static {
+    Method factory = null;
+    try {
+      factory = CodedInputStream.class.getMethod("newInstance", Iterable.class);
+    } catch (Throwable t) {
+      logger.log(
+          Level.FINER,
+          "CodedInputStream.newInstance(Iterable<ByteBuffer>) is not available, "
+              + "this is expected for protobuf-lite",
+          t);
+    }
+    CIS_MULTI_BUF_FACTORY = factory;
+  }
 
   /**
    * Sets the global registry for proto marshalling shared across all servers and clients.
@@ -171,7 +209,39 @@ public final class ProtoLiteUtils {
       }
       CodedInputStream cis = null;
       try {
-        if (stream instanceof KnownLength) {
+        if (stream instanceof ReadableBufferList) {
+          ReadableBufferList bufferListStream = (ReadableBufferList) stream;
+          if (bufferListStream.bufferListAvailable()) {
+            List<ByteBuffer> bufferList = bufferListStream.getBufferList();
+            // When protobuf reads from arrays, it can use the intrinsic version of
+            // Arrays.copyOfRange() which does not initialize the result with zeros before
+            // filling it with data.
+            // Heap ByteBuffers have java arrays, so protobuf can use the array based code path.
+            //
+            // Direct ByteBuffers do not have java arrays, and protobuf ends up creating a new
+            // zeroed out byte[] each time which can be costly for big messages. For this case,
+            // we would rather copy to the ThreadLocal byte[] (KnownLength case)
+            // and use protobuf's array based code path.
+            //
+            // Note: some JVMs take advantage of the CPU's vector instruction sets for efficient
+            // zeroing. Advanced users can force gRPC to pass the DirectByteBuffer to protobuf.
+            if (PROTOBUF_READ_FROM_DIRECT_BUFFER || allBuffersHaveArrays(bufferList)) {
+              // On Android, we use okhttp + protobuf lite.
+              // OkHttpReadableBuffer does not support gathering buffers, and protobuf lite does
+              // not support the Itable<ByteBuffer> factory method.
+              // Therefore in practice, if we collect the ByteBuffers we expect to always be
+              // able to use it. netty + protobuf-lite is not a config we optimize for, but it
+              // does behave correctly.
+              if (bufferList.size() == 1) {
+                cis = CodedInputStream.newInstance(bufferList.get(0));
+              } else if (bufferList.size() > 1
+                  && PROTOBUF_MULTI_BUFFER && CIS_MULTI_BUF_FACTORY != null) {
+                cis = (CodedInputStream) CIS_MULTI_BUF_FACTORY.invoke(/* obj= */ null, bufferList);
+              }
+            }
+          }
+        }
+        if (cis == null && stream instanceof KnownLength) {
           int size = stream.available();
           if (size > 0 && size <= DEFAULT_MAX_MESSAGE_SIZE) {
             Reference<byte[]> ref;
@@ -203,6 +273,10 @@ public final class ProtoLiteUtils {
         }
       } catch (IOException e) {
         throw new RuntimeException(e);
+      } catch (IllegalAccessException e) {
+        throw new RuntimeException(e);
+      } catch (InvocationTargetException e) {
+        throw new RuntimeException(e);
       }
       if (cis == null) {
         cis = CodedInputStream.newInstance(stream);
@@ -229,6 +303,15 @@ public final class ProtoLiteUtils {
         throw e;
       }
     }
+  }
+
+  private static boolean allBuffersHaveArrays(Iterable<ByteBuffer> bufs) {
+    for (ByteBuffer buf : bufs) {
+      if (!buf.hasArray()) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static final class MetadataMarshaller<T extends MessageLite>

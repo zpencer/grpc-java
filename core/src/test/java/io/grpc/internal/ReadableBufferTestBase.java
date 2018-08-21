@@ -17,12 +17,16 @@
 package io.grpc.internal;
 
 import static com.google.common.base.Charsets.UTF_8;
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -116,7 +120,28 @@ public abstract class ReadableBufferTestBase {
     assertArrayEquals(new byte[] {'h', 'e'}, Arrays.copyOfRange(array, 0, 2));     
   }
 
+  @Test
+  public void gatherBuffers() {
+    ReadableBuffer buffer = buffer();
+    assertTrue(buffer.bufferListAvailable());
+
+    List<ByteBuffer> bufferList = new ArrayList<ByteBuffer>();
+    buffer.collectBufferList(bufferList);
+
+    assertThat(concat(bufferList)).isEqualTo(msg.getBytes(UTF_8));
+  }
+
   protected abstract ReadableBuffer buffer();
+
+  private static byte[] concat(List<ByteBuffer> bufferList) {
+    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    for (ByteBuffer bb : bufferList) {
+      while (bb.hasRemaining()) {
+        bos.write(bb.get());
+      }
+    }
+    return bos.toByteArray();
+  }
 
   private static String repeatUntilLength(String toRepeat, int length) {
     StringBuilder buf = new StringBuilder();

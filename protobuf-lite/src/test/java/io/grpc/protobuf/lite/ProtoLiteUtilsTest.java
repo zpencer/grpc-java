@@ -18,8 +18,10 @@ package io.grpc.protobuf.lite;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.common.io.ByteStreams;
@@ -33,6 +35,7 @@ import io.grpc.KnownLength;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor.Marshaller;
 import io.grpc.MethodDescriptor.PrototypeMarshaller;
+import io.grpc.ReadableBufferList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.internal.GrpcUtil;
@@ -40,7 +43,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -227,8 +233,87 @@ public class ProtoLiteUtilsTest {
   }
 
   @Test
+  public void parseFromReadableBufferList_oneBuffer() throws Exception {
+    // protobuf lite only supports the single ByteBuffer constructor at the moment
+    // if there are > 1 buffers, we should not use the buffer list
+    Marshaller<Type> marshaller = ProtoLiteUtils.marshaller(Type.getDefaultInstance());
+    Type expect = Type.newBuilder().setName("expected name").build();
+
+    CustomReadableBufferList bl = new CustomReadableBufferList(
+        Collections.singletonList(ByteBuffer.wrap(expect.toByteArray())),
+        null);
+    assertTrue(bl.bufferListAvailable());
+    Type result = marshaller.parse(bl);
+    assertEquals(expect, result);
+    assertTrue(bl.getBufferListCalled);
+    assertFalse(bl.readCalled);
+  }
+
+  @Test
+  public void parseFromReadableBufferList_multipleBuffers() throws Exception {
+    // protobuf lite only supports the single ByteBuffer constructor at the moment
+    // if there are > 1 buffers, we should not use the buffer list
+    Marshaller<Type> marshaller = ProtoLiteUtils.marshaller(Type.getDefaultInstance());
+    Type expect = Type.newBuilder().setName("expected name").build();
+
+    List<ByteBuffer> dummyBufs = Arrays.asList(ByteBuffer.allocate(0), ByteBuffer.allocate(0));
+
+    CustomReadableBufferList bl = new CustomReadableBufferList(
+        dummyBufs,
+        new ByteArrayInputStream(expect.toByteArray()));
+    assertTrue(bl.bufferListAvailable());
+    Type result = marshaller.parse(bl);
+    assertEquals(expect, result);
+    assertTrue(bl.readCalled);
+  }
+
+  @Test
+  public void parseFromReadableBufferList_notAvailable() throws Exception {
+    Marshaller<Type> marshaller = ProtoLiteUtils.marshaller(Type.getDefaultInstance());
+    Type expect = Type.newBuilder().setName("expected name").build();
+
+    CustomReadableBufferList bl = new CustomReadableBufferList(
+        null,
+        new ByteArrayInputStream(expect.toByteArray()));
+    assertFalse(bl.bufferListAvailable());
+    Type result = marshaller.parse(bl);
+    assertEquals(expect, result);
+    assertFalse(bl.getBufferListCalled);
+    assertTrue(bl.readCalled);
+  }
+
+  @Test
   public void defaultMaxMessageSize() {
     assertEquals(GrpcUtil.DEFAULT_MAX_MESSAGE_SIZE, ProtoLiteUtils.DEFAULT_MAX_MESSAGE_SIZE);
+  }
+
+  private static class CustomReadableBufferList extends InputStream implements ReadableBufferList {
+    private final List<ByteBuffer> bufs;
+    private final InputStream fallback;
+    boolean getBufferListCalled;
+    boolean readCalled;
+
+    CustomReadableBufferList(List<ByteBuffer> bufs, InputStream fallback) {
+      this.bufs = bufs;
+      this.fallback = fallback;
+    }
+
+    @Override
+    public boolean bufferListAvailable() {
+      return bufs != null;
+    }
+
+    @Override
+    public List<ByteBuffer> getBufferList() {
+      getBufferListCalled = true;
+      return bufs;
+    }
+
+    @Override
+    public int read() throws IOException {
+      readCalled = true;
+      return fallback.read();
+    }
   }
 
   private static class CustomKnownLengthInputStream extends InputStream implements KnownLength {

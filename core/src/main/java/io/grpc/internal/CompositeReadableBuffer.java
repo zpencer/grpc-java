@@ -16,10 +16,12 @@
 
 package io.grpc.internal;
 
+import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 
 /**
@@ -34,6 +36,7 @@ public class CompositeReadableBuffer extends AbstractReadableBuffer {
 
   private int readableBytes;
   private final Queue<ReadableBuffer> buffers = new ArrayDeque<ReadableBuffer>();
+  private boolean bufferListAvailable = true;
 
   /**
    * Adds a new {@link ReadableBuffer} at the end of the buffer list. After a buffer is added, it is
@@ -42,6 +45,7 @@ public class CompositeReadableBuffer extends AbstractReadableBuffer {
    * this {@code CompositeBuffer}.
    */
   public void addBuffer(ReadableBuffer buffer) {
+    bufferListAvailable &= buffer.bufferListAvailable();
     if (!(buffer instanceof CompositeReadableBuffer)) {
       buffers.add(buffer);
       readableBytes += buffer.readableBytes();
@@ -150,6 +154,21 @@ public class CompositeReadableBuffer extends AbstractReadableBuffer {
       }
     }
     return newBuffer;
+  }
+
+  @Override
+  public boolean bufferListAvailable() {
+    return bufferListAvailable;
+  }
+
+  @Override
+  public void collectBufferList(List<ByteBuffer> result) {
+    Preconditions.checkState(
+        bufferListAvailable,
+        "This instance does not support gathering all buffers. Check bufferListAvailable() first.");
+    for (ReadableBuffer buffer : buffers) {
+      buffer.collectBufferList(result);
+    }
   }
 
   @Override

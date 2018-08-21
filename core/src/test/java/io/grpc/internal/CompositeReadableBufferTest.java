@@ -17,13 +17,17 @@
 package io.grpc.internal;
 
 import static com.google.common.base.Charsets.UTF_8;
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -164,6 +168,25 @@ public class CompositeReadableBufferTest {
     composite.close();
     verify(mock1).close();
     verify(mock2).close();
+  }
+
+  @Test
+  public void gatherBuffers() {
+    composite = new CompositeReadableBuffer();
+
+    composite.addBuffer(ReadableBuffers.wrap("abc".getBytes(UTF_8)));
+    composite.addBuffer(ReadableBuffers.wrap("123".getBytes(UTF_8)));
+    composite.addBuffer(ReadableBuffers.wrap("xyz".getBytes(UTF_8)));
+
+    assertTrue(composite.bufferListAvailable());
+
+    List<ByteBuffer> result = new ArrayList<ByteBuffer>();
+    composite.collectBufferList(result);
+
+    assertEquals(3, result.size());
+    assertThat(result.get(0).array()).isEqualTo("abc".getBytes(UTF_8));
+    assertThat(result.get(1).array()).isEqualTo("123".getBytes(UTF_8));
+    assertThat(result.get(2).array()).isEqualTo("xyz".getBytes(UTF_8));
   }
 
   private void splitAndAdd(String value) {

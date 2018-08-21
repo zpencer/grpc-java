@@ -16,6 +16,9 @@
 
 package io.grpc.internal;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 /**
  * Abstract base class for {@link ReadableBuffer} implementations.
  */
@@ -42,6 +45,16 @@ public abstract class AbstractReadableBuffer implements ReadableBuffer {
 
   @Override
   public int arrayOffset() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean bufferListAvailable() {
+    return false;
+  }
+
+  @Override
+  public void collectBufferList(List<ByteBuffer> result) {
     throw new UnsupportedOperationException();
   }
 
