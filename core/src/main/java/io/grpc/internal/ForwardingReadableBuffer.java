@@ -21,6 +21,7 @@ import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * Base class for a wrapper around another {@link ReadableBuffer}.
@@ -94,6 +95,16 @@ public abstract class ForwardingReadableBuffer implements ReadableBuffer {
   @Override
   public int arrayOffset() {
     return buf.arrayOffset();
+  }
+
+  @Override
+  public boolean bufferListAvailable() {
+    return buf.bufferListAvailable();
+  }
+
+  @Override
+  public void collectBufferList(List<ByteBuffer> result) {
+    buf.collectBufferList(result);
   }
 
   @Override

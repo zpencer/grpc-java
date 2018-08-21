@@ -17,6 +17,8 @@
 package io.grpc.internal;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,7 +28,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -138,6 +142,22 @@ public class ForwardingReadableBufferTest {
 
     assertEquals(1, buffer.arrayOffset());
   }
+
+  @Test
+  public void canGatherBuffers() {
+    when(delegate.bufferListAvailable()).thenReturn(true);
+
+    assertTrue(buffer.bufferListAvailable());
+  }
+
+  @Test
+  public void gatherBuffers() {
+    List<ByteBuffer> result = new ArrayList<ByteBuffer>();
+
+    buffer.collectBufferList(result);
+    verify(delegate).collectBufferList(same(result));
+  }
+
 
   @Test
   public void close() {

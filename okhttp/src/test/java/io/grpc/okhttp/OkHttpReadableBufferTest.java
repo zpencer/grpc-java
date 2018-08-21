@@ -16,6 +16,8 @@
 
 package io.grpc.okhttp;
 
+import static org.junit.Assert.assertFalse;
+
 import io.grpc.internal.ReadableBuffer;
 import io.grpc.internal.ReadableBufferTestBase;
 import okio.Buffer;
@@ -44,6 +46,11 @@ public class OkHttpReadableBufferTest extends ReadableBufferTestBase {
     }
   }
 
+  @Test
+  public void okHttpDoesNotSupportGatherBuffers() {
+    assertFalse(buffer().bufferListAvailable());
+  }
+
   @Override
   @Test
   public void readToByteBufferShouldSucceed() {
@@ -53,6 +60,12 @@ public class OkHttpReadableBufferTest extends ReadableBufferTestBase {
   @Override
   @Test
   public void partialReadToByteBufferShouldSucceed() {
+    // Not supported.
+  }
+
+  @Override
+  @Test
+  public void gatherBuffers() {
     // Not supported.
   }
 

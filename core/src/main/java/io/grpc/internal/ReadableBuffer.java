@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * Interface for an abstract byte buffer. Buffers are intended to be a read-only, except for the
@@ -122,6 +123,22 @@ public interface ReadableBuffer extends Closeable {
    * @throws UnsupportedOperationException the buffer does not support this method
    */
   int arrayOffset();
+
+  /**
+   * Indicates whether {@link #collectBufferList(List)} can be called at this time.
+   */
+  boolean bufferListAvailable();
+
+  /**
+   * Gathers the buffers into the user supplied result list. The buffers are still owned
+   * by this object and {@link #close()} must still be called.
+   * This is an optional method, so callers should first check {@link #bufferListAvailable}.
+   *
+   * <p>The List is passed in as an argument in order to reduce intermediate List allocations.
+   *
+   * @throws UnsupportedOperationException the buffer does not support this method
+   */
+  void collectBufferList(List<ByteBuffer> results);
 
   /**
    * Closes this buffer and releases any resources.
