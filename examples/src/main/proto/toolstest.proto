@@ -1,0 +1,85 @@
+// Copyright 2018 The gRPC Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.toolstest";
+option java_outer_classname = "ToolsTestProto";
+
+package toolstest;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+// A service that tests edge cases CLI tooling.
+// The actual implementation MUST also do the following on the server header
+// and server trailer:
+// - add a 'tool-ascii' with an arbitrary ascii string
+// - add a 'tool-stub-proto-bin' with a SimpleValue whose 'name'
+//   field is an arbitrary ascii string
+// - add a 'tool-nonstub-proto-bin' with a OtherMessage with both
+//   fields set to 1.11
+// - add a 'tool-external-proto-bin' with ExternalMessage from
+//   toolstest_external.proto, with its field set to 1.11.
+service ToolsTest {
+  // Echos the message and ends with an OK
+  rpc Echo (ComplexMessage) returns (ComplexMessage) {}
+
+  // Echos every message until there are no more and ends with an OK
+  rpc EchoStream (stream ComplexMessage) returns (stream ComplexMessage) {}
+
+  // Returns a complex message
+  rpc GetComplex (GetComplexMessageRequest) returns (ComplexMessage) {}
+
+  // This RPC is failed, and a com.google.rpc.Status is added to
+  // the trailer as 'grpc-status-details-bin'
+  rpc FailWithStatusProto (SimpleMessage) returns (google.protobuf.Empty) {}
+
+  // The RPC is failed with the code and message. If the code is 0 (OK),
+  // we will fail with 1 (CANCELLED).
+  rpc FailWithStatus (FailureTypeRequest) returns (google.protobuf.Empty) {}
+}
+
+message FailureTypeRequest {
+  uint32 code = 1;
+  string message = 2;
+}
+
+message SimpleMessage {
+  string name = 1;
+}
+
+message GetComplexMessageRequest {
+  // Determines whether the returned message should pack a proto registered in
+  // the reflection service. I.E. the proto is something that appears in the
+  // method stubs.
+  bool known_any = 1;
+}
+
+// The request message containing the user's name.
+message ComplexMessage {
+  string name = 1;
+  google.protobuf.Any payload = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.DoubleValue double_value = 4;
+}
+
+// A message that does not appear in server stubs, but should appear in
+// reflection.
+message OtherMessage {
+  double d1 = 1;
+  double d2 = 2;
+}
