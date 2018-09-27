@@ -28,11 +28,11 @@ import "google/protobuf/wrappers.proto";
 // The actual implementation MUST also do the following on the server header
 // and server trailer:
 // - add a 'tool-ascii' with an arbitrary ascii string
-// - add a 'tool-stub-proto-bin' with a SimpleValue whose 'name'
+// - add a 'toolstest.simplemessage-bin' with a SimpleValue whose 'name'
 //   field is an arbitrary ascii string
-// - add a 'tool-nonstub-proto-bin' with a OtherMessage with both
+// - add a 'toolstest.othermessage-bin' with a OtherMessage with both
 //   fields set to 1.11
-// - add a 'tool-external-proto-bin' with ExternalMessage from
+// - add a 'toolstest.externalmessage-bin' with ExternalMessage from
 //   toolstest_external.proto, with its field set to 1.11.
 service ToolsTest {
   // Echos the message and ends with an OK

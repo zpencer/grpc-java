@@ -100,14 +100,11 @@ public class ToolsTestServer {
     static final Metadata.Key<String> ASCII_KEY =
         Metadata.Key.of("tools-ascii", Metadata.ASCII_STRING_MARSHALLER);
     static final Metadata.Key<SimpleMessage> STUB_KEY =
-        Metadata.Key.of("tools-stub-proto-bin",
-            ProtoUtils.metadataMarshaller(SimpleMessage.getDefaultInstance()));
+            ProtoUtils.keyForProto(SimpleMessage.getDefaultInstance());
     static final Metadata.Key<OtherMessage> NON_STUB_KEY =
-        Metadata.Key.of("tools-nonstub-proto-bin",
-            ProtoUtils.metadataMarshaller(OtherMessage.getDefaultInstance()));
+        ProtoUtils.keyForProto(OtherMessage.getDefaultInstance());
     static final Metadata.Key<ExternalMessage> EXTERNAL_KEY =
-        Metadata.Key.of("tools-external-proto-bin",
-            ProtoUtils.metadataMarshaller(ExternalMessage.getDefaultInstance()));
+            ProtoUtils.keyForProto(ExternalMessage.getDefaultInstance());
 
 
     @Override
